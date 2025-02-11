@@ -16,7 +16,7 @@ class BooksApp extends React.Component {
       this.setState({ books })
     })
   }
-
+  // seperates it into the categories 
   shelves = [
     {key:'currentlyReading' , name: 'Currently Reading'},
     {key:'wantToRead' , name: 'Want to Read'},
