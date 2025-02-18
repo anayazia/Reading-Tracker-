@@ -1,0 +1,456 @@
+// Import necessary modules and components
+import * as React from "react";
+import { createRoot } from "react-dom/client";
+import {
+  SparkApp,
+  PageContainer,
+  Button,
+  Input,
+  Card,
+  Select,
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from "@github/spark/components";
+import { useKV } from "@github/spark/hooks";
+import {
+  PlayCircle,
+  PauseCircle,
+  StopCircle,
+  MagnifyingGlass,
+} from "@phosphor-icons/react";
+
+// BookItem component displays each book with its details
+const BookItem = ({ book, onChangeStatus, onDelete, onUpdateBook }) => {
+  // State for tracking reading status and time
+  const [isReading, setIsReading] = React.useState(false);
+  const [elapsedTime, setElapsedTime] = React.useState(
+    book.timeSpentReading || 0
+  );
+  const [intervalId, setIntervalId] = React.useState(null);
+  const [pagesRead, setPagesRead] = React.useState(book.pagesRead || 0);
+
+  // Start reading and begin timer
+  const startReading = () => {
+    if (!isReading) {
+      const id = setInterval(() => {
+        setElapsedTime((prevTime) => prevTime + 1);
+      }, 1000);
+      setIntervalId(id);
+      setIsReading(true);
+    }
+  };
+
+  // Pause reading and timer
+  const pauseReading = () => {
+    if (isReading && intervalId) {
+      clearInterval(intervalId);
+      setIntervalId(null);
+      setIsReading(false);
+      onUpdateBook(book.id, { timeSpentReading: elapsedTime });
+    }
+  };
+
+  // Stop reading and save time and pages read
+  const stopReading = () => {
+    if (isReading && intervalId) {
+      clearInterval(intervalId);
+      setIntervalId(null);
+      setIsReading(false);
+    }
+    onUpdateBook(book.id, {
+      timeSpentReading: elapsedTime,
+      pagesRead,
+    });
+  };
+
+  return (
+    <Card className="mb-4">
+      {/* Using Dialog to display book details when clicked */}
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button variant="plain" className="w-full text-left">
+            <h3 className="text-xl font-semibold">{book.title}</h3>
+            <p>By {book.author}</p>
+            <p>Genre: {book.genre}</p>
+            <p>Status: {book.status}</p>
+            {/* Display time spent reading next to each book */}
+            <p>
+              Time spent reading: {Math.floor(book.timeSpentReading / 60)}m{" "}
+              {book.timeSpentReading % 60}s
+            </p>
+          </Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{book.title}</DialogTitle>
+            <DialogDescription>By {book.author}</DialogDescription>
+          </DialogHeader>
+          <div>
+            <p>Genre: {book.genre}</p>
+            <p>Status: {book.status}</p>
+            <p>Pages read: {pagesRead}</p>
+            <Input
+              type="number"
+              value={pagesRead}
+              onChange={(e) => setPagesRead(Number(e.target.value))}
+              placeholder="Pages read"
+              className="mb-2"
+            />
+            <p>
+              Time spent reading: {Math.floor(elapsedTime / 60)}m{" "}
+              {elapsedTime % 60}s
+            </p>
+            <div className="flex space-x-2 mt-2">
+              <Button
+                onClick={startReading}
+                icon={<PlayCircle />}
+                disabled={isReading}
+              >
+                Start
+              </Button>
+              <Button
+                onClick={pauseReading}
+                icon={<PauseCircle />}
+                disabled={!isReading}
+              >
+                Pause
+              </Button>
+              <Button onClick={stopReading} icon={<StopCircle />}>
+                Stop
+              </Button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Select
+              value={book.status}
+              onChange={(e) => onChangeStatus(book.id, e.target.value)}
+            >
+              <option value="Want to Read">Want to Read</option>
+              <option value="Reading">Reading</option>
+              <option value="Completed">Completed</option>
+            </Select>
+            <DialogClose asChild>
+              <Button
+                onClick={() => onDelete(book.id)}
+                variant="secondary"
+              >
+                Delete
+              </Button>
+            </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Card>
+  );
+};
+
+// AddBookForm component for adding new books
+const AddBookForm = ({ onAddBook }) => {
+  // State for form fields
+  const [title, setTitle] = React.useState("");
+  const [author, setAuthor] = React.useState("");
+  const [genre, setGenre] = React.useState("");
+  const [status, setStatus] = React.useState("Want to Read");
+
+  // Handle form submission
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onAddBook({
+      title,
+      author,
+      genre,
+      status,
+      timeSpentReading: 0,
+      pagesRead: 0,
+      id: Date.now(),
+    });
+    // Reset form fields
+    setTitle("");
+    setAuthor("");
+    setGenre("");
+    setStatus("Want to Read");
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="mb-6">
+      <Input
+        type="text"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="Book Title"
+        className="mb-2"
+      />
+      <Input
+        type="text"
+        value={author}
+        onChange={(e) => setAuthor(e.target.value)}
+        placeholder="Author"
+        className="mb-2"
+      />
+      <Input
+        type="text"
+        value={genre}
+        onChange={(e) => setGenre(e.target.value)}
+        placeholder="Genre"
+        className="mb-2"
+      />
+      <Select
+        value={status}
+        onChange={(e) => setStatus(e.target.value)}
+        className="mb-2"
+      >
+        <option value="Want to Read">Want to Read</option>
+        <option value="Reading">Reading</option>
+        <option value="Completed">Completed</option>
+      </Select>
+      <Button type="submit" variant="primary">
+        Add Book
+      </Button>
+    </form>
+  );
+};
+
+// Binary search by author
+const binarySearchByAuthor = (books, author) => {
+  // Ensure books is an array
+  if (!Array.isArray(books)) return -1;
+
+  let left = 0;
+  let right = books.length - 1;
+
+  while (left <= right) {
+    const mid = Math.floor((left + right) / 2);
+    if (books[mid].author.toLowerCase() === author.toLowerCase()) {
+      return mid;
+    }
+    if (books[mid].author.toLowerCase() < author.toLowerCase()) {
+      left = mid + 1;
+    } else {
+      right = mid - 1;
+    }
+  }
+
+  return -1;
+};
+
+// Binary search by title
+const binarySearchByTitle = (books, title) => {
+  // Ensure books is an array
+  if (!Array.isArray(books)) return -1;
+
+  let left = 0;
+  let right = books.length - 1;
+
+  while (left <= right) {
+    const mid = Math.floor((left + right) / 2);
+    if (books[mid].title.toLowerCase() === title.toLowerCase()) {
+      return mid;
+    }
+    if (books[mid].title.toLowerCase() < title.toLowerCase()) {
+      left = mid + 1;
+    } else {
+      right = mid - 1;
+    }
+  }
+
+  return -1;
+};
+
+// Login component for user authentication
+const Login = ({ onLogin }) => {
+  const [username, setUsername] = React.useState("");
+  const [password, setPassword] = React.useState("");
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onLogin(username);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <Input
+        type="text"
+        value={username}
+        onChange={(e) => setUsername(e.target.value)}
+        placeholder="Username"
+      />
+      <Input
+        type="password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        placeholder="Password"
+      />
+      <Button type="submit" variant="primary">
+        Log In
+      </Button>
+    </form>
+  );
+};
+
+// Main App component
+const App = () => {
+  // Using useKV hook to persist books and user data
+  const [books, setBooks] = useKV("books", []);
+  const [user, setUser, deleteUser] = useKV("user", null);
+
+  const [searchTerm, setSearchTerm] = React.useState("");
+  const [searchBy, setSearchBy] = React.useState("author");
+  const [searchResults, setSearchResults] = React.useState([]);
+
+  // Ensure books is always an array
+  React.useEffect(() => {
+    if (!Array.isArray(books)) {
+      setBooks([]);
+    }
+  }, [books]);
+
+  // Function to add a new book
+  const addBook = (newBook) => {
+    setBooks([...books, newBook]);
+  };
+
+  // Function to delete a book
+  const deleteBook = (id) => {
+    setBooks(books.filter((book) => book.id !== id));
+  };
+
+  // Function to change the status of a book
+  const changeStatus = (id, newStatus) => {
+    setBooks(
+      books.map((book) =>
+        book.id === id ? { ...book, status: newStatus } : book
+      )
+    );
+  };
+
+  // Function to update book details
+  const updateBook = (id, updates) => {
+    setBooks(
+      books.map((book) =>
+        book.id === id ? { ...book, ...updates } : book
+      )
+    );
+  };
+
+  // Handle search functionality
+  const handleSearch = () => {
+    // Ensure books is an array
+    if (!Array.isArray(books)) return;
+
+    const sortedBooks = [...books].sort((a, b) =>
+      searchBy === "author"
+        ? a.author.localeCompare(b.author)
+        : a.title.localeCompare(b.title)
+    );
+    const index =
+      searchBy === "author"
+        ? binarySearchByAuthor(sortedBooks, searchTerm)
+        : binarySearchByTitle(sortedBooks, searchTerm);
+    if (index !== -1) {
+      setSearchResults([sortedBooks[index]]);
+    } else {
+      setSearchResults([]);
+    }
+  };
+
+  if (!user) {
+    // Applying purple background to the application
+    return (
+      <SparkApp className="bg-purple-500">
+        <PageContainer maxWidth="small">
+          <h1 className="text-2xl font-bold mb-4">Reading Tracker</h1>
+          <Login onLogin={setUser} />
+        </PageContainer>
+      </SparkApp>
+    );
+  }
+
+  return (
+    // Main application with purple background
+    <SparkApp className="bg-purple-500">
+      <PageContainer maxWidth="medium">
+        <h1 className="text-2xl font-bold mb-4">Reading Tracker</h1>
+        <p className="mb-4">Welcome, {user}!</p>
+        <Button
+          onClick={() => setUser(null)}
+          variant="secondary"
+          className="mb-4"
+        >
+          Log Out
+        </Button>
+
+        <h2 className="text-xl font-semibold mb-2">Add a New Book</h2>
+        <AddBookForm onAddBook={addBook} />
+
+        <h2 className="text-xl font-semibold mb-2">Search Books</h2>
+        <div className="flex space-x-2 mb-4">
+          <Input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search term"
+            className="flex-grow"
+          />
+          <Select
+            value={searchBy}
+            onChange={(e) => setSearchBy(e.target.value)}
+          >
+            <option value="author">Author</option>
+            <option value="title">Title</option>
+          </Select>
+          <Button
+            onClick={handleSearch}
+            icon={<MagnifyingGlass />}
+          >
+            Search
+          </Button>
+        </div>
+
+        {searchResults.length > 0 && (
+          <div className="mb-4">
+            <h3 className="text-lg font-semibold mb-2">
+              Search Results
+            </h3>
+            {searchResults.map((book) => (
+              <BookItem
+                key={book.id}
+                book={book}
+                onChangeStatus={changeStatus}
+                onDelete={deleteBook}
+                onUpdateBook={updateBook}
+              />
+            ))}
+          </div>
+        )}
+
+        <h2 className="text-xl font-semibold mb-2">Your Books</h2>
+        {["Want to Read", "Reading", "Completed"].map((status) => (
+          <div key={status}>
+            <h3 className="text-lg font-semibold mb-2">{status}</h3>
+            {books
+              .filter((book) => book.status === status)
+              .map((book) => (
+                <BookItem
+                  key={book.id}
+                  book={book}
+                  onChangeStatus={changeStatus}
+                  onDelete={deleteBook}
+                  onUpdateBook={updateBook}
+                />
+              ))}
+          </div>
+        ))}
+      </PageContainer>
+    </SparkApp>
+  );
+};
+
+// Render the App component
+const root = createRoot(document.getElementById("root"));
+root.render(<App />);
