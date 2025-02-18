@@ -25,105 +25,71 @@ import {
   MagnifyingGlass,
 } from "@phosphor-icons/react";
 
-// BookItem component displays each book with its details
+// BookItem component
 const BookItem = ({ book, onChangeStatus, onDelete, onUpdateBook }) => {
-  // State for tracking reading status and time
   const [isReading, setIsReading] = React.useState(false);
-  const [elapsedTime, setElapsedTime] = React.useState(
-    book.timeSpentReading || 0
-  );
-  const [intervalId, setIntervalId] = React.useState(null);
+  const [elapsedTime, setElapsedTime] = React.useState(book.timeSpentReading || 0);
+  const [timer, setTimer] = React.useState(null);
   const [pagesRead, setPagesRead] = React.useState(book.pagesRead || 0);
 
-  // Start reading and begin timer
   const startReading = () => {
-    if (!isReading) {
-      const id = setInterval(() => {
-        setElapsedTime((prevTime) => prevTime + 1);
-      }, 1000);
-      setIntervalId(id);
-      setIsReading(true);
-    }
+    setIsReading(true);
+    const startTime = Date.now() - elapsedTime;
+    setTimer(
+      setInterval(() => {
+        setElapsedTime(Date.now() - startTime);
+      }, 1000)
+    );
   };
 
-  // Pause reading and timer
   const pauseReading = () => {
-    if (isReading && intervalId) {
-      clearInterval(intervalId);
-      setIntervalId(null);
-      setIsReading(false);
-      onUpdateBook(book.id, { timeSpentReading: elapsedTime });
-    }
+    setIsReading(false);
+    clearInterval(timer);
   };
 
-  // Stop reading and save time and pages read
   const stopReading = () => {
-    if (isReading && intervalId) {
-      clearInterval(intervalId);
-      setIntervalId(null);
-      setIsReading(false);
-    }
-    onUpdateBook(book.id, {
-      timeSpentReading: elapsedTime,
-      pagesRead,
-    });
+    setIsReading(false);
+    clearInterval(timer);
+    onUpdateBook(book.id, { timeSpentReading: elapsedTime, pagesRead });
+  };
+
+  const formatTime = (ms) => {
+    const seconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    return `${hours.toString().padStart(2, '0')}:${(minutes % 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;
   };
 
   return (
-    <Card className="mb-4">
-      {/* Using Dialog to display book details when clicked */}
+    <Card className="mb-4 p-4">
       <Dialog>
         <DialogTrigger asChild>
-          <Button variant="plain" className="w-full text-left">
-            <h3 className="text-xl font-semibold">{book.title}</h3>
-            <p>By {book.author}</p>
-            <p>Genre: {book.genre}</p>
-            <p>Status: {book.status}</p>
-            {/* Display time spent reading next to each book */}
-            <p>
-              Time spent reading: {Math.floor(book.timeSpentReading / 60)}m{" "}
-              {book.timeSpentReading % 60}s
-            </p>
-          </Button>
+          <Button variant="plain">{book.title}</Button>
         </DialogTrigger>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{book.title}</DialogTitle>
-            <DialogDescription>By {book.author}</DialogDescription>
+            <DialogDescription>Book Details</DialogDescription>
           </DialogHeader>
-          <div>
-            <p>Genre: {book.genre}</p>
-            <p>Status: {book.status}</p>
-            <p>Pages read: {pagesRead}</p>
+          <div className="space-y-2">
+            <p><strong>Author:</strong> {book.author}</p>
+            <p><strong>Genre:</strong> {book.genre}</p>
+            <p><strong>Status:</strong> {book.status}</p>
+            <p><strong>Pages Read:</strong> {pagesRead}</p>
             <Input
               type="number"
               value={pagesRead}
               onChange={(e) => setPagesRead(Number(e.target.value))}
               placeholder="Pages read"
-              className="mb-2"
             />
-            <p>
-              Time spent reading: {Math.floor(elapsedTime / 60)}m{" "}
-              {elapsedTime % 60}s
-            </p>
-            <div className="flex space-x-2 mt-2">
-              <Button
-                onClick={startReading}
-                icon={<PlayCircle />}
-                disabled={isReading}
-              >
-                Start
-              </Button>
-              <Button
-                onClick={pauseReading}
-                icon={<PauseCircle />}
-                disabled={!isReading}
-              >
-                Pause
-              </Button>
-              <Button onClick={stopReading} icon={<StopCircle />}>
-                Stop
-              </Button>
+            <p><strong>Time Spent Reading:</strong> {formatTime(elapsedTime)}</p>
+            <div className="flex space-x-2">
+              {!isReading ? (
+                <Button onClick={startReading} icon={<PlayCircle />}>Start</Button>
+              ) : (
+                <Button onClick={pauseReading} icon={<PauseCircle />}>Pause</Button>
+              )}
+              <Button onClick={stopReading} icon={<StopCircle />}>Stop</Button>
             </div>
           </div>
           <DialogFooter>
@@ -135,13 +101,9 @@ const BookItem = ({ book, onChangeStatus, onDelete, onUpdateBook }) => {
               <option value="Reading">Reading</option>
               <option value="Completed">Completed</option>
             </Select>
+            <Button onClick={() => onDelete(book.id)} variant="secondary">Delete</Button>
             <DialogClose asChild>
-              <Button
-                onClick={() => onDelete(book.id)}
-                variant="secondary"
-              >
-                Delete
-              </Button>
+              <Button variant="primary">Close</Button>
             </DialogClose>
           </DialogFooter>
         </DialogContent>
@@ -150,27 +112,25 @@ const BookItem = ({ book, onChangeStatus, onDelete, onUpdateBook }) => {
   );
 };
 
-// AddBookForm component for adding new books
+// AddBookForm component
 const AddBookForm = ({ onAddBook }) => {
-  // State for form fields
   const [title, setTitle] = React.useState("");
   const [author, setAuthor] = React.useState("");
   const [genre, setGenre] = React.useState("");
   const [status, setStatus] = React.useState("Want to Read");
 
-  // Handle form submission
   const handleSubmit = (e) => {
     e.preventDefault();
-    onAddBook({
+    const newBook = {
+      id: Date.now(),
       title,
       author,
       genre,
       status,
-      timeSpentReading: 0,
       pagesRead: 0,
-      id: Date.now(),
-    });
-    // Reset form fields
+      timeSpentReading: 0,
+    };
+    onAddBook(newBook);
     setTitle("");
     setAuthor("");
     setGenre("");
@@ -178,87 +138,63 @@ const AddBookForm = ({ onAddBook }) => {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="mb-6">
+    <form onSubmit={handleSubmit} className="space-y-2 mb-4">
       <Input
         type="text"
         value={title}
         onChange={(e) => setTitle(e.target.value)}
-        placeholder="Book Title"
-        className="mb-2"
+        placeholder="Title"
+        required
       />
       <Input
         type="text"
         value={author}
         onChange={(e) => setAuthor(e.target.value)}
         placeholder="Author"
-        className="mb-2"
+        required
       />
       <Input
         type="text"
         value={genre}
         onChange={(e) => setGenre(e.target.value)}
         placeholder="Genre"
-        className="mb-2"
+        required
       />
       <Select
         value={status}
         onChange={(e) => setStatus(e.target.value)}
-        className="mb-2"
       >
         <option value="Want to Read">Want to Read</option>
         <option value="Reading">Reading</option>
         <option value="Completed">Completed</option>
       </Select>
-      <Button type="submit" variant="primary">
-        Add Book
-      </Button>
+      <Button type="submit" variant="primary">Add Book</Button>
     </form>
   );
 };
 
-// Binary search by author
+// Binary search functions
 const binarySearchByAuthor = (books, author) => {
-  // Ensure books is an array
-  if (!Array.isArray(books)) return -1;
-
   let left = 0;
   let right = books.length - 1;
-
   while (left <= right) {
     const mid = Math.floor((left + right) / 2);
-    if (books[mid].author.toLowerCase() === author.toLowerCase()) {
-      return mid;
-    }
-    if (books[mid].author.toLowerCase() < author.toLowerCase()) {
-      left = mid + 1;
-    } else {
-      right = mid - 1;
-    }
+    if (books[mid].author.toLowerCase() === author.toLowerCase()) return mid;
+    if (books[mid].author.toLowerCase() < author.toLowerCase()) left = mid + 1;
+    else right = mid - 1;
   }
-
   return -1;
 };
 
-// Binary search by title
 const binarySearchByTitle = (books, title) => {
-  // Ensure books is an array
-  if (!Array.isArray(books)) return -1;
-
   let left = 0;
   let right = books.length - 1;
-
   while (left <= right) {
     const mid = Math.floor((left + right) / 2);
-    if (books[mid].title.toLowerCase() === title.toLowerCase()) {
-      return mid;
-    }
-    if (books[mid].title.toLowerCase() < title.toLowerCase()) {
-      left = mid + 1;
-    } else {
-      right = mid - 1;
-    }
+    if (books[mid].title.toLowerCase() === title.toLowerCase()) return mid;
+    if (books[mid].title.toLowerCase() < title.toLowerCase()) left = mid + 1;
+    else right = mid - 1;
   }
-
   return -1;
 };
 
@@ -266,10 +202,11 @@ const binarySearchByTitle = (books, title) => {
 const Login = ({ onLogin }) => {
   const [username, setUsername] = React.useState("");
   const [password, setPassword] = React.useState("");
+  const [color, setColor] = React.useState("purple");
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onLogin(username);
+    onLogin(username, color);
   };
 
   return (
@@ -286,6 +223,18 @@ const Login = ({ onLogin }) => {
         onChange={(e) => setPassword(e.target.value)}
         placeholder="Password"
       />
+      <Select
+        value={color}
+        onChange={(e) => setColor(e.target.value)}
+        className="mb-2"
+      >
+        <option value="purple">Purple</option>
+        <option value="dark blue">Dark Blue</option>
+        <option value="light blue">Light Blue</option>
+        <option value="dark red">Dark Red</option>
+        <option value="light red">Light Red</option>
+        <option value="black">Black</option>
+      </Select>
       <Button type="submit" variant="primary">
         Log In
       </Button>
@@ -297,7 +246,7 @@ const Login = ({ onLogin }) => {
 const App = () => {
   // Using useKV hook to persist books and user data
   const [books, setBooks] = useKV("books", []);
-  const [user, setUser, deleteUser] = useKV("user", null);
+  const [userData, setUserData, deleteUserData] = useKV("userData", null);
 
   const [searchTerm, setSearchTerm] = React.useState("");
   const [searchBy, setSearchBy] = React.useState("author");
@@ -359,26 +308,49 @@ const App = () => {
     }
   };
 
-  if (!user) {
-    // Applying purple background to the application
+  const handleLogin = (username, color) => {
+    setUserData({ username, color });
+  };
+
+  const handleLogout = () => {
+    setUserData(null);
+  };
+
+  const getBackgroundColor = () => {
+    switch (userData?.color) {
+      case 'dark blue':
+        return 'bg-blue-900';
+      case 'light blue':
+        return 'bg-blue-400';
+      case 'dark red':
+        return 'bg-red-900';
+      case 'light red':
+        return 'bg-red-400';
+      case 'black':
+        return 'bg-neutral-900';
+      default:
+        return 'bg-purple-500';
+    }
+  };
+
+  if (!userData) {
     return (
-      <SparkApp className="bg-purple-500">
+      <SparkApp className={getBackgroundColor()}>
         <PageContainer maxWidth="small">
           <h1 className="text-2xl font-bold mb-4">Reading Tracker</h1>
-          <Login onLogin={setUser} />
+          <Login onLogin={handleLogin} />
         </PageContainer>
       </SparkApp>
     );
   }
 
   return (
-    // Main application with purple background
-    <SparkApp className="bg-purple-500">
+    <SparkApp className={getBackgroundColor()}>
       <PageContainer maxWidth="medium">
         <h1 className="text-2xl font-bold mb-4">Reading Tracker</h1>
-        <p className="mb-4">Welcome, {user}!</p>
+        <p className="mb-4">Welcome, {userData.username}!</p>
         <Button
-          onClick={() => setUser(null)}
+          onClick={handleLogout}
           variant="secondary"
           className="mb-4"
         >
@@ -454,3 +426,4 @@ const App = () => {
 // Render the App component
 const root = createRoot(document.getElementById("root"));
 root.render(<App />);
+
